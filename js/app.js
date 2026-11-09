@@ -179,6 +179,7 @@
       if (S.ground) ctl = this.ac.placeOnGround(S.ground.n, S.ground.e, S.ground.hdg, { flaps: S.ground.flaps || 0 });
       else ctl = this.ac.placeInAir(S.air);
       this.ctl = Object.assign(FS.neutralControls(), ctl);
+      this.input.resetYoke();
       this.panel.setKollsman(this.wx.cfg.qnhInHg);
       this.panel.hdgBug = S.air ? S.air.hdg : S.ground.hdg;
       this.view.mode = lesson.view || 'cockpit';
@@ -253,7 +254,7 @@
       }
       const idx = FS.LESSONS.indexOf(d.lesson);
       const next = FS.LESSONS[idx + 1];
-      $('deb-next').classList.toggle('hidden', !next || next.free);
+      $('deb-next').classList.toggle('hidden', !next || !!next.free);
       $('debrief').classList.remove('hidden');
       this.drawDebriefChart();
     }
@@ -680,7 +681,10 @@
       ctx.fillStyle = 'rgba(255,255,255,0.7)';
       ctx.font = '600 9px system-ui';
       ctx.fillText('YOKE', x0 + 2, y0 + 10);
-      ctx.fillText('T', x0 + s + 11, y0 + s + 16);
+      ctx.fillText('TRIM', x0 + s + 2, y0 + s + 16);
+      ctx.fillStyle = '#fff';
+      ctx.font = '600 10px system-ui';
+      ctx.fillText(`THR ${Math.round(t.throttle * 100)}%  FLAP ${Math.round(t.flaps)}°`, x0, H - 3);
     }
 
     // ================================================================= menu & settings

@@ -318,11 +318,25 @@
     }
 
     drawHills() {
+      // the hills ride along with the camera horizontally, so they always sit on the far horizon
+      const ctx = this.ctx;
+      let last = null;
       for (const h of this.world.hills) {
-        const c = h.pts.map((p) => this.toCam([p[0] + this.cam[0] * 0.98, p[1] + this.cam[1] * 0.98, p[2]]));
-        if (c[0][0] < NEAR && c[1][0] < NEAR && c[2][0] < NEAR) continue;
+        const c = h.pts.map((p) => this.toCam([p[0] + this.cam[0], p[1] + this.cam[1], p[2]]));
+        if (c.every((q) => q[0] < NEAR)) continue;
         const pp = this.clipProject(c);
-        if (pp) this.fillPoly(pp, rgb(mix(h.color, HAZE, 0.45)));
+        if (!pp) continue;
+        const col = h.color === last ? ctx.fillStyle : rgb(mix(h.color, HAZE, 0.5));
+        last = h.color;
+        ctx.beginPath();
+        ctx.moveTo(pp[0][0], pp[0][1]);
+        for (let i = 1; i < pp.length; i++) ctx.lineTo(pp[i][0], pp[i][1]);
+        ctx.closePath();
+        ctx.fillStyle = col;
+        ctx.fill();
+        ctx.strokeStyle = col; // hide hairline seams between segments
+        ctx.lineWidth = 1;
+        ctx.stroke();
       }
     }
 
@@ -611,7 +625,7 @@
     }
 
     // ---------------------------------------------------------------- teaching overlays
-    arrow3d(from, dirW, len, color, label, width = 3) {
+    arrow3d(from, dirW, len, color, label, width = 3, labelAtStart = false) {
       const ctx = this.ctx;
       const to = [from[0] + dirW[0] * len, from[1] + dirW[1] * len, from[2] + dirW[2] * len];
       const a = this.toCam(from), b = this.toCam(to);
@@ -637,11 +651,13 @@
       ctx.closePath();
       ctx.fill();
       if (label) {
-        ctx.font = `${12 * this.dpr}px system-ui, sans-serif`;
+        ctx.font = `600 ${12 * this.dpr}px system-ui, sans-serif`;
         ctx.lineWidth = 3 * this.dpr;
         ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-        ctx.strokeText(label, pb[0] + ux * 10 + 4, pb[1] + uy * 10 + 4);
-        ctx.fillText(label, pb[0] + ux * 10 + 4, pb[1] + uy * 10 + 4);
+        const lx = labelAtStart ? pa[0] - ux * 10 - 40 * this.dpr : pb[0] + ux * 10 + 4;
+        const ly = labelAtStart ? pa[1] - uy * 10 - 6 : pb[1] + uy * 10 + 4;
+        ctx.strokeText(label, lx, ly);
+        ctx.fillText(label, lx, ly);
       }
     }
 
@@ -665,7 +681,7 @@
       if (f.V > 3) {
         const rw = mulMV(R, [-f.vb[0] / f.V, -f.vb[1] / f.V, -f.vb[2] / f.V]);
         const start = [cg[0] - rw[0] * 9, cg[1] - rw[1] * 9, cg[2] - rw[2] * 9];
-        this.arrow3d(start, rw, 4, 'rgba(255,255,255,0.75)', 'relative wind', 1.5);
+        this.arrow3d(start, rw, 4, 'rgba(255,255,255,0.75)', 'relative wind', 1.5, true);
       }
       void t;
     }

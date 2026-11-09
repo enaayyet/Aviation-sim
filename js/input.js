@@ -22,7 +22,7 @@
       this.shift = false;
       this.mouseYoke = false;
       this.mouse = { x: 0, y: 0 };
-      this.settings = { spring: true, pitchRate: 1.0, rollRate: 1.6, mouseSens: 1.0, invertMouse: false };
+      this.settings = { spring: true, pitchRate: 0.8, rollRate: 1.6, mouseSens: 1.0, invertMouse: false };
       this.gamepadActive = false;
       this.viewEl = viewEl;
       this.onAction = null;
@@ -71,6 +71,10 @@
       delete this.keys[e.code];
     }
 
+    resetYoke() {
+      this.yoke = { e: 0, a: 0 };
+    }
+
     toggleMouseYoke(on) {
       this.mouseYoke = on === undefined ? !this.mouseYoke : on;
       return this.mouseYoke;
@@ -86,23 +90,27 @@
       // ---- gamepad (overrides yoke/rudder if present and moved)
       const gp = this.pollGamepad();
 
-      // ---- yoke
+      // ---- yoke. "Expo" softens the centre so small corrections are easy while full deflection is still there.
+      const expo = (x) => 0.5 * x + 0.5 * x * x * x;
+      const y = this.yoke || (this.yoke = { e: 0, a: 0 });
       if (gp) {
-        ctl.elevator = gp.elevator;
-        ctl.aileron = gp.aileron;
+        y.e = gp.elevator;
+        y.a = gp.aileron;
         ctl.rudder = gp.rudder;
       } else if (this.mouseYoke) {
         const dz = (v) => (Math.abs(v) < 0.03 ? 0 : (v - Math.sign(v) * 0.03) / 0.97);
-        ctl.aileron = clamp(dz(this.mouse.x) * 1.15 * s.mouseSens, -1, 1);
-        ctl.elevator = clamp(dz(this.mouse.y) * 1.25 * s.mouseSens * (s.invertMouse ? -1 : 1), -1, 1);
+        y.a = clamp(dz(this.mouse.x) * 1.15 * s.mouseSens, -1, 1);
+        y.e = clamp(dz(this.mouse.y) * 1.25 * s.mouseSens * (s.invertMouse ? -1 : 1), -1, 1);
       } else {
-        if (k.ArrowDown) ctl.elevator = Math.min(1, ctl.elevator + s.pitchRate * fine * dt);
-        else if (k.ArrowUp) ctl.elevator = Math.max(-1, ctl.elevator - s.pitchRate * fine * dt);
-        else ctl.elevator = approach(ctl.elevator, 0, back * dt);
-        if (k.ArrowRight) ctl.aileron = Math.min(1, ctl.aileron + s.rollRate * fine * dt);
-        else if (k.ArrowLeft) ctl.aileron = Math.max(-1, ctl.aileron - s.rollRate * fine * dt);
-        else ctl.aileron = approach(ctl.aileron, 0, back * 1.3 * dt);
+        if (k.ArrowDown) y.e = Math.min(1, Math.max(y.e, 0) + s.pitchRate * fine * dt);
+        else if (k.ArrowUp) y.e = Math.max(-1, Math.min(y.e, 0) - s.pitchRate * fine * dt);
+        else y.e = approach(y.e, 0, back * dt);
+        if (k.ArrowRight) y.a = Math.min(1, Math.max(y.a, 0) + s.rollRate * fine * dt);
+        else if (k.ArrowLeft) y.a = Math.max(-1, Math.min(y.a, 0) - s.rollRate * fine * dt);
+        else y.a = approach(y.a, 0, back * 1.3 * dt);
       }
+      ctl.elevator = expo(y.e);
+      ctl.aileron = expo(y.a);
       if (!gp) {
         const rr = 1.5 * fine;
         if (k.KeyD || k.KeyX) ctl.rudder = Math.min(1, ctl.rudder + rr * dt);

@@ -195,7 +195,7 @@
       ctx.font = '600 10px system-ui, sans-serif';
       ctx.textAlign = 'left';
       ctx.fillText('FROM BEHIND', x + 6, y + 13);
-      const sc = Math.min(w / 13, h / 7);
+      const sc = Math.min(w / 18, h / 11);
       const right = P(mulMV(R, [0, 1, 0]));
       const down = P(mulMV(R, [0, 0, 1]));
       const toS = (by, bz) => [cx + (right[0] * by + down[0] * bz) * sc, cy - (right[1] * by + down[1] * bz) * sc];
@@ -219,7 +219,7 @@
       ctx.lineTo(fin[1][0], fin[1][1]);
       ctx.stroke();
 
-      const L = Math.min(h * 0.34, w * 0.3);
+      const L = Math.min(h * 0.4, w * 0.3);
       const lw = P(mulMV(R, f.liftDirB));
       const lx = (lw[0] * L * f.lift) / Wt, ly = (lw[1] * L * f.lift) / Wt;
       arrow(ctx, cx, cy, 0, L, COLORS.weight, 2.5, 'W');

@@ -482,7 +482,8 @@
       this.cv.height = this.H;
       this.dpr = dpr;
       const cols = 5;
-      const sideW = Math.min(this.W * 0.24, 270 * dpr);
+      // on narrow screens the side cluster is dropped (throttle/flaps/trim are shown over the 3D view)
+      const sideW = this.W / dpr < 640 ? 0 : Math.min(this.W * 0.24, 270 * dpr);
       const gr = Math.min((this.H - 8 * dpr) / 4.25, (this.W - sideW) / (cols * 2.18));
       this.r = gr;
       const used = cols * gr * 2.18;
@@ -494,7 +495,7 @@
           this.pos[k] = { x: x0 + ci * gr * 2.18, y: this.H / 2 + (ri === 0 ? -1 : 1) * gr * 1.06 };
         })
       );
-      this.side = { x: x0 + cols * gr * 2.18 - gr * 0.5, y: 6 * dpr, w: this.W - (x0 + cols * gr * 2.18 - gr * 0.5) - 8 * dpr, h: this.H - 12 * dpr };
+      this.side = sideW ? { x: x0 + cols * gr * 2.18 - gr * 0.5, y: 6 * dpr, w: this.W - (x0 + cols * gr * 2.18 - gr * 0.5) - 8 * dpr, h: this.H - 12 * dpr } : { x: 0, y: 0, w: 0, h: 0 };
       this.cache = {};
     }
 

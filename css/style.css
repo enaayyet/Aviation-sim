@@ -45,7 +45,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 5px; border: 1px solid
 #hud div { background: rgba(0,0,0,0.45); border-radius: 6px; padding: 3px 8px; text-align: center; min-width: 56px; }
 #hud b { display: block; font: 700 17px ui-monospace, Menlo, monospace; color: #a8ffbf; }
 #hud small { font-size: 10px; color: #cfd; letter-spacing: 0.06em; }
-#ctlpos { position: absolute; left: 10px; bottom: 10px; width: 120px; height: 120px; pointer-events: none; opacity: 0.9; }
+#ctlpos { position: absolute; left: 10px; bottom: 10px; width: 120px; height: 132px; pointer-events: none; opacity: 0.9; }
 #banner { position: absolute; left: 50%; top: 28%; transform: translate(-50%, -50%); background: rgba(10,10,12,0.78); border: 2px solid var(--bad); color: #fff; padding: 14px 24px; border-radius: 10px; font-size: 22px; font-weight: 700; text-align: center; max-width: 80%; }
 #banner small { display: block; font-size: 13px; font-weight: 400; color: #ddd; margin-top: 6px; }
 #banner.info { border-color: var(--accent2); }
@@ -166,6 +166,6 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 5px; border: 1px solid
   #panel { height: clamp(170px, 28vh, 240px); }
   #hud div { min-width: 44px; padding: 2px 5px; }
   #hud b { font-size: 13px; }
-  #ctlpos { width: 84px; height: 84px; }
+  #ctlpos { width: 90px; height: 99px; }
   .wb-grid { grid-template-columns: 1fr; }
 }

@@ -67,10 +67,10 @@
       CYdr: -0.187,
       CYp: -0.037,
       CYr: 0.21,
-      Clb: -0.1,
+      Clb: -0.092,
       Clp: -0.47,
       Clr: 0.075,
-      Clda: 0.178,
+      Clda: 0.19,
       Cldr: 0.0147,
       Cm0: 0.02,
       Cma: -0.62, // at reference CG (88 in)
@@ -88,7 +88,7 @@
         { deg: 0, dCL: 0.0, dCLmax: 0.0, dCD: 0.0, dCm: 0.0 },
         { deg: 10, dCL: 0.16, dCLmax: 0.2, dCD: 0.009, dCm: -0.012 },
         { deg: 25, dCL: 0.38, dCLmax: 0.43, dCD: 0.03, dCm: -0.025 },
-        { deg: 40, dCL: 0.56, dCLmax: 0.62, dCD: 0.062, dCm: -0.035 },
+        { deg: 40, dCL: 0.56, dCLmax: 0.62, dCD: 0.054, dCm: -0.035 },
       ],
       stallWarnMargin: 3.2 * U.DEG, // lift detector trips this far below stall AoA
     },
@@ -100,7 +100,7 @@
       trimPull: 0.15, // trim full nose-up
       trimPush: -0.1, // trim full nose-down
       aileronMax: 0.25,
-      rudderMax: 0.3,
+      rudderMax: 0.27,
       noseSteerMax: 20 * U.DEG,
       flapRate: 20, // deg/s (manual Johnson-bar flaps move quickly)
     },

@@ -226,23 +226,33 @@
         this.objects.push({ type: 'tree', p: [n, e, 0], h: r.range(8, 16), r: r.range(3, 6), shade: r.range(0.85, 1.15) });
       }
 
-      // ---- distant hills for heading reference
+      // ---- distant hills for heading reference: two layers of continuous ridgelines
       this.hills = [];
-      const HR = 28000;
-      for (let k = 0; k < 40; k++) {
-        const a0 = (k / 40) * Math.PI * 2;
-        const a1 = ((k + 1) / 40) * Math.PI * 2;
-        const big = Math.sin(a0 * 2 + 0.7) > 0.3; // ridges to the NW and SE
-        const h = (big ? r.range(500, 1100) : r.range(120, 380)) * 1;
-        const am = (a0 + a1) / 2;
-        this.hills.push({
-          pts: [
-            [Math.cos(a0) * HR, Math.sin(a0) * HR, 0],
-            [Math.cos(am) * HR * 1.02, Math.sin(am) * HR * 1.02, -h],
-            [Math.cos(a1) * HR, Math.sin(a1) * HR, 0],
-          ],
-          color: big ? [110, 124, 136] : [118, 134, 128],
-        });
+      const layers = [
+        { R: 32000, n: 90, base: [120, 136, 150], amp: 1150, rough: 0.55 },
+        { R: 24000, n: 90, base: [112, 132, 124], amp: 520, rough: 0.7 },
+      ];
+      for (const Ly of layers) {
+        // smooth random profile (sum of a few sine harmonics + jitter)
+        const ph = [r() * 6.28, r() * 6.28, r() * 6.28, r() * 6.28];
+        const height = (a) => {
+          const big = 0.5 + 0.5 * Math.sin(a * 2 + ph[0]); // ridges in two quadrants
+          const v = 0.55 * Math.sin(a * 5 + ph[1]) + 0.3 * Math.sin(a * 11 + ph[2]) + 0.15 * Math.sin(a * 23 + ph[3]);
+          return Math.max(60, Ly.amp * (0.25 + 0.75 * big) * (0.6 + Ly.rough * 0.5 * v));
+        };
+        for (let k = 0; k < Ly.n; k++) {
+          const a0 = (k / Ly.n) * Math.PI * 2;
+          const a1 = ((k + 1) / Ly.n) * Math.PI * 2;
+          this.hills.push({
+            pts: [
+              [Math.cos(a0) * Ly.R, Math.sin(a0) * Ly.R, 0],
+              [Math.cos(a0) * Ly.R, Math.sin(a0) * Ly.R, -height(a0)],
+              [Math.cos(a1) * Ly.R, Math.sin(a1) * Ly.R, -height(a1)],
+              [Math.cos(a1) * Ly.R, Math.sin(a1) * Ly.R, 0],
+            ],
+            color: Ly.base,
+          });
+        }
       }
 
       this.flat.sort((a, b) => a.layer - b.layer);

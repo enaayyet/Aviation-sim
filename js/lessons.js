@@ -732,7 +732,8 @@
       summary: 'Way too high on final? Slip to lose altitude without gaining speed.',
       briefing: `
         <p><b>A forward slip deliberately flies the airplane sideways through the air.</b> The fuselage presents its whole side to the relative wind, drag shoots up, and you descend steeply <i>without</i> picking up speed. It's the classic tool when you're high on final (especially without flaps, or with an engine failure).</p>
-        <p><b>Technique:</b> idle power. Lower one wing with aileron and apply <i>full opposite</i> rudder so the nose swings away from the low wing — your track stays straight down the runway. Lower the nose slightly to hold your approach speed. The ASI may read a little off in a slip (the pitot tube isn't pointing into the wind).</p>
+        <p><b>Technique:</b> idle power. Lower one wing with aileron and apply <i>full opposite</i> rudder so the nose swings away from the low wing — your track stays straight down the runway. Lower the nose slightly to hold your approach speed. The ASI reads a few knots low in a slip (the pitot tube isn't pointing into the relative wind).</p>
+        <p><b>Watch the dihedral:</b> sideslip makes the airplane want to roll <i>away</i> from the rudder (that's the wing's dihedral at work). In a full-rudder slip you'll need about two-thirds of the opposite aileron. If the bank keeps creeping the wrong way, add aileron or ease off the rudder — a half-hearted slip with full rudder can roll into a spiral.</p>
         <p><b>Recover</b> before the flare: wings level, rudder neutral, smoothly — then land normally.</p>
         <p>You're 1 nm out, <b>~600 ft too high</b>, flaps 40°, idle.</p>`,
       setup: { air: { n: -1850, e: 0, altFt: 600 + 900, hdg: 360, ias: 68, flaps: 40, throttle: 0 }, weather: FIELD, loading: LOAD_NORMAL, map: {} },
