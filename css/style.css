@@ -30,7 +30,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 5px; border: 1px solid
 .muted { color: var(--muted); font-weight: 400; }
 .spacer { flex: 1; }
 
-#app { display: grid; grid-template-columns: 1fr var(--side-w); height: 100vh; }
+#app { display: grid; grid-template-columns: 1fr var(--side-w); height: 100%; }
 #app.no-side { grid-template-columns: 1fr 0; }
 #app.no-side #side { display: none; }
 #main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
