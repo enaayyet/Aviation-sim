@@ -511,6 +511,11 @@
         },
         { passive: false }
       );
+      // buttons shouldn't keep keyboard focus, or Space (brakes) would "click" them again
+      document.addEventListener('click', (e) => {
+        const b = e.target.closest && e.target.closest('#topbar button, #side button');
+        if (b) b.blur();
+      });
       document.addEventListener('visibilitychange', () => {
         if (document.hidden && !this.paused && !this.anyOverlay()) this.togglePause();
       });

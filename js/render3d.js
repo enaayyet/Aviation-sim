@@ -264,7 +264,7 @@
       const camH = -this.cam[2];
       if (view.mode !== 'cockpit' && -ac.s.pos[2] < 400) this.drawShadow(ac);
       this.drawObjects(ac, view);
-      if (view.mode !== 'cockpit' && view.showForces) this.drawForceVectors(ac, view.tele);
+      if (view.mode === 'chase' && view.showForces) this.drawForceVectors(ac, view.tele);
       if (view.mode === 'cockpit' && view.showAids && Math.abs(this.look.yaw) < 0.2) this.drawHudAids(ac, view.tele);
       ctx.restore();
       void camH;

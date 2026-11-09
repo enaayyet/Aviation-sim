@@ -69,6 +69,7 @@
     up(e) {
       this.shift = e.shiftKey;
       delete this.keys[e.code];
+      if (CONTINUOUS.has(e.code) && !this.isTyping(e)) e.preventDefault();
     }
 
     resetYoke() {

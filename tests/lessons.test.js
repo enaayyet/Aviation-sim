@@ -179,3 +179,55 @@ test('weight & balance lesson swaps the load in flight', () => {
   assert.ok(h.ac.cgIn < cgAft - 4, `cg ${cgAft} -> ${h.ac.cgIn}`);
   assert.ok(h.ac.staticMargin > 0.12);
 });
+
+test('student flies the whole traffic pattern and lands', () => {
+  const l = FS.LESSONS.find((x) => x.id === 'pattern');
+  const h = harness(l);
+  const ap = new Autopilot();
+  let phase = 'downwind';
+  const d = h.run(420, (t, c, dt, r) => {
+    const i = r.i;
+    if (i === 0) phase = 'downwind';
+    if (i === 1) phase = 'abeam';
+    if (i === 2) phase = 'base';
+    if (i >= 3) phase = t.e > -300 && Math.abs(M.wrap180(t.hdg)) < 60 ? 'final' : 'turnfinal';
+    if (phase === 'downwind') {
+      ap.altSpeed(t, c, 1600, 90, dt);
+      ap.heading(t, c, 180, 25);
+    } else if (phase === 'abeam' || phase === 'base') {
+      c.flaps = phase === 'abeam' ? (t.ias < 100 ? 10 : 0) : 25;
+      c.throttle = 0.42;
+      ap.speedPitch(t, c, phase === 'abeam' ? 80 : 75, dt);
+      ap.heading(t, c, phase === 'abeam' ? 180 : 90, 25);
+    } else if (phase === 'turnfinal') {
+      c.flaps = 25;
+      c.throttle = 0.42;
+      ap.speedPitch(t, c, 72, dt);
+      ap.heading(t, c, 0, 30);
+    } else {
+      c.flaps = 40;
+      const dist = Math.max(0, 305 - t.n);
+      const glideAlt = 600 + Math.tan(3 * U.DEG) * dist * FT;
+      if (t.agl > 18 && !t.onGround) {
+        const vsCmd = -Math.tan(3 * U.DEG) * t.gs * 101.27 + 2.0 * (glideAlt - t.altInd);
+        ap.pitch(t, c, M.clamp(t.alpha - 3 + 0.04 * (vsCmd - t.vs), -10, 12), dt);
+        c.throttle = M.clamp(0.42 + 0.05 * (66 - t.ias), 0, 1);
+      } else if (!t.onGround) {
+        c.throttle = 0;
+        ap.pitch(t, c, M.clamp(2 + (18 - t.agl) * 0.45 + (-t.vs - 150) * 0.01, 0, 10), dt);
+      } else {
+        c.throttle = 0;
+        c.elevator = 0.3;
+        c.brakeL = c.brakeR = t.gs < 45 ? 1 : 0;
+        c.rudder = M.clamp(-0.05 * t.e - 0.1 * M.wrap180(t.hdg), -1, 1);
+      }
+      if (!t.onGround) ap.heading(t, c, M.wrap180(-0.06 * t.e * FT), 15);
+    }
+  });
+  assert.ok(!h.ac.crashed, h.ac.crashed);
+  assert.ok(d && d.completed, `finished=${!!d} step=${h.runner.i}`);
+  const td = h.ac.touchdown;
+  assert.ok(td && td.vsFpm < 600, `touchdown ${td && td.vsFpm}`);
+  const landed = d.items.find((x) => x.label === 'Touchdown point');
+  assert.ok(landed, 'touchdown point graded');
+});
