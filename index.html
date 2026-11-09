@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pattern Work — PA-28 Training Sim</title>
+    <meta name="description" content="A physics-first private-pilot training simulator: lift, weight, thrust and drag in a six-degree-of-freedom PA-28 model, with ACS-graded lessons." />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <main id="main">
+        <div id="topbar">
+          <button id="btn-menu" title="Menu (Esc)">☰ Menu</button>
+          <span id="lesson-name">—</span>
+          <span class="spacer"></span>
+          <button id="btn-view" title="Change view (C)">View: Cockpit</button>
+          <button id="btn-aids" title="Teaching aids: flight-path marker &amp; force vectors (H)">Aids</button>
+          <button id="btn-yoke" title="Fly with the mouse (Y or click the view)">Mouse yoke</button>
+          <button id="btn-slow" title="Simulation speed (T)">1×</button>
+          <button id="btn-pause" title="Pause (P)">Pause</button>
+          <button id="btn-restart" title="Restart lesson (R)">Restart</button>
+          <button id="btn-sound" title="Sound (M)">Sound</button>
+          <button id="btn-help" title="Keys (?)">?</button>
+          <button id="btn-side" title="Show/hide side panel">⇥</button>
+        </div>
+        <div id="view-wrap">
+          <canvas id="view3d"></canvas>
+          <div id="hud" class="hidden">
+            <div><b id="h-ias">0</b><small>KIAS</small></div>
+            <div><b id="h-alt">0</b><small>FT</small></div>
+            <div><b id="h-vs">0</b><small>FPM</small></div>
+            <div><b id="h-hdg">000</b><small>HDG</small></div>
+            <div><b id="h-aoa">0</b><small>AoA°</small></div>
+            <div><b id="h-gs">0</b><small>GS KT</small></div>
+            <div><b id="h-agl">0</b><small>AGL</small></div>
+          </div>
+          <canvas id="ctlpos" width="120" height="120" title="Your control positions: yoke (square), rudder (bottom), trim (side)"></canvas>
+          <div id="banner" class="hidden"></div>
+          <div id="toasts"></div>
+          <div id="viewhint"></div>
+        </div>
+        <canvas id="panel"></canvas>
+      </main>
+
+      <aside id="side">
+        <section id="lesson-box">
+          <div class="sect-title">Instructor</div>
+          <h2 id="lesson-title">Welcome</h2>
+          <div id="step-text">Open the menu to pick a lesson.</div>
+          <div id="step-tip"></div>
+          <div id="meters"></div>
+          <ol id="step-list"></ol>
+          <div class="row">
+            <button id="btn-ack" class="primary hidden">Continue (N)</button>
+            <button id="btn-skip" class="ghost">Skip step</button>
+            <button id="btn-end" class="ghost">End lesson</button>
+          </div>
+        </section>
+        <section id="forces-box">
+          <div class="sect-title">The four forces <span class="muted">— live</span></div>
+          <canvas id="forces"></canvas>
+          <table id="force-table">
+            <tr><td class="c-lift">Lift</td><td id="f-lift">—</td><td class="c-weight">Weight</td><td id="f-weight">—</td></tr>
+            <tr><td class="c-thrust">Thrust</td><td id="f-thrust">—</td><td class="c-drag">Drag</td><td id="f-drag">—</td></tr>
+            <tr><td>L/D</td><td id="f-ld">—</td><td>Load</td><td id="f-g">—</td></tr>
+            <tr><td>C<sub>L</sub></td><td id="f-cl">—</td><td>AoA</td><td id="f-aoa">—</td></tr>
+            <tr><td colspan="4" id="f-eq" class="eq">—</td></tr>
+            <tr><td colspan="4" id="f-ps" class="eq">—</td></tr>
+          </table>
+        </section>
+        <section id="map-box">
+          <div class="sect-title">Map <span class="muted" id="wx-line"></span></div>
+          <canvas id="map"></canvas>
+        </section>
+      </aside>
+    </div>
+
+    <!-- ===================== overlays ===================== -->
+    <div id="menu" class="overlay">
+      <div class="dialog wide">
+        <header>
+          <div>
+            <h1>Pattern Work</h1>
+            <div class="muted">A physics-first private-pilot trainer · PA-28-161 Warrior II flight model</div>
+          </div>
+          <button class="close" id="menu-close" title="Close (Esc)">✕</button>
+        </header>
+        <nav class="tabs">
+          <button data-tab="lessons" class="active">Lessons</button>
+          <button data-tab="weather">Weather</button>
+          <button data-tab="wb">Weight &amp; Balance</button>
+          <button data-tab="controls">Controls</button>
+          <button data-tab="about">How it works</button>
+        </nav>
+        <div class="tab" id="tab-lessons"></div>
+        <div class="tab hidden" id="tab-weather"></div>
+        <div class="tab hidden" id="tab-wb"></div>
+        <div class="tab hidden" id="tab-controls"></div>
+        <div class="tab hidden" id="tab-about"></div>
+      </div>
+    </div>
+
+    <div id="briefing" class="overlay hidden">
+      <div class="dialog">
+        <header>
+          <div>
+            <div class="muted" id="brief-group"></div>
+            <h1 id="brief-title"></h1>
+          </div>
+          <button class="close" id="brief-close">✕</button>
+        </header>
+        <div id="brief-body" class="prose"></div>
+        <div id="brief-conditions" class="conditions"></div>
+        <footer>
+          <button id="brief-back" class="ghost">Back to lessons</button>
+          <button id="brief-fly" class="primary">Fly ▶</button>
+        </footer>
+      </div>
+    </div>
+
+    <div id="debrief" class="overlay hidden">
+      <div class="dialog">
+        <header>
+          <div>
+            <div class="muted">Debrief</div>
+            <h1 id="deb-title"></h1>
+          </div>
+          <div id="deb-badge" class="badge"></div>
+        </header>
+        <div id="deb-reason"></div>
+        <canvas id="deb-chart"></canvas>
+        <div id="deb-items"></div>
+        <footer>
+          <button id="deb-menu" class="ghost">Lessons</button>
+          <button id="deb-free" class="ghost">Keep flying</button>
+          <button id="deb-retry">Retry</button>
+          <button id="deb-next" class="primary">Next lesson ▶</button>
+        </footer>
+      </div>
+    </div>
+
+    <script src="js/math.js"></script>
+    <script src="js/atmosphere.js"></script>
+    <script src="js/aircraft.js"></script>
+    <script src="js/physics.js"></script>
+    <script src="js/world.js"></script>
+    <script src="js/render3d.js"></script>
+    <script src="js/instruments.js"></script>
+    <script src="js/diagrams.js"></script>
+    <script src="js/input.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/lessons.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>

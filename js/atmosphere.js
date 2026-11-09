@@ -50,9 +50,13 @@
       const c = this.cfg;
       this.fieldElev = c.fieldElevFt * U.FT;
       this.qnh = c.qnhInHg * U.INHG;
-      const Tfield = c.tempC + 273.15;
+      this.Tfield = c.tempC + 273.15;
       // Temperature at sea level implied by the field temperature and the standard lapse rate.
-      this.Tsl = Tfield + ISA.L * this.fieldElev;
+      this.Tsl = this.Tfield + ISA.L * this.fieldElev;
+      // QNH is *defined* through the standard atmosphere: an altimeter set to QNH reads field elevation
+      // on the ground whatever the temperature. So the field's static pressure comes from the standard model;
+      // above and below the field the real (non-standard) temperature column applies.
+      this.Pfield = this.qnh * Math.pow(1 - (ISA.L * this.fieldElev) / ISA.T0, ISA.EXP);
       this.rand = M.rng(c.seed >>> 0 || 1234);
     }
 
@@ -63,7 +67,7 @@
     /** Air properties at an altitude above mean sea level (m). */
     at(altMSL) {
       const T = Math.max(180, this.Tsl - ISA.L * altMSL);
-      const P = this.qnh * Math.pow(T / this.Tsl, ISA.EXP);
+      const P = this.Pfield * Math.pow(T / this.Tfield, ISA.EXP);
       const rho = P / (ISA.R * T);
       return {
         T, // K

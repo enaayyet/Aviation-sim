@@ -1,0 +1,12 @@
+{
+  "name": "pattern-work-flight-sim",
+  "version": "1.0.0",
+  "description": "A physics-first private-pilot training simulator (PA-28-161) that runs in the browser.",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "calibrate": "node tools/calibrate.js",
+    "start": "python3 -m http.server 8080"
+  },
+  "license": "MIT"
+}

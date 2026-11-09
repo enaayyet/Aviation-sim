@@ -76,7 +76,7 @@
       Cma: -0.62, // at reference CG (88 in)
       Cmq: -12.4,
       Cmadot: -5.2,
-      Cmde: 1.05, // per rad of stabilator "pull"
+      Cmde: 1.4, // per rad of stabilator "pull" (all-moving tail: ~24 ft² on a long arm)
       CmStall: -0.09, // nose-down break at the stall
       Cnb: 0.072,
       Cnp: -0.03,
