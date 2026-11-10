@@ -30,6 +30,16 @@
     ['Moderate', 0.6],
     ['Severe', 0.95],
   ];
+  // Instructor call-outs that would only be noise in a lesson that flies that condition on purpose.
+  const COACH_MUTE = {
+    forces: ['trim', 'carb-idle-high', 'climb-slow'],
+    'slow-flight': ['stall', 'climb-slow', 'trim'],
+    'stall-power-off': ['stall', 'climb-slow', 'trim', 'slow-final'],
+    'stall-power-on': ['stall', 'climb-slow', 'trim'],
+    'forward-slip': ['ball', 'high-path'],
+    'engine-failure': ['low-path', 'high-path', 'sink'],
+    'weight-balance': ['trim'],
+  };
   const VIEWS = ['cockpit', 'chase', 'tower'];
   const VIEW_NAMES = { cockpit: 'Cockpit', chase: 'Chase', tower: 'Tower' };
   const LOOK = { Digit1: [-90, -8], Digit2: [-45, -4], Digit3: [0, 0], Digit4: [45, -4], Digit5: [90, -8], Digit6: [-130, -15], Digit7: [130, -15] };
@@ -45,10 +55,13 @@
           input: {},
           sound: true,
           aids: false,
+          assists: { coach: true, voice: false, autoRudder: false },
         },
         stored.settings || {}
       );
+      this.settings.assists = Object.assign({ coach: true, voice: false, autoRudder: false }, this.settings.assists);
       this.progress = stored.progress || {};
+      this.logbook = stored.logbook || [];
 
       this.wx = new FS.Weather(this.settings.weather);
       this.world = new FS.World();
@@ -66,6 +79,11 @@
       this.input.onAction = (code, e) => this.action(code, e);
       this.sound = new FS.Sound();
       this.sound.setMuted(!this.settings.sound);
+      this.coach = new FS.Coach(this.world);
+      this.autoRudder = new FS.AutoRudder(this.world);
+      this.fctl = {};
+      this.landings = [];
+      this.usedAutoRudder = false;
 
       this.view = { mode: 'cockpit', lookYaw: 0, lookPitch: 0, orbitYaw: 35, orbitPitch: 14, orbitDist: 24, showForces: true, showAids: this.settings.aids, fov: 74 };
       this.ctl = FS.neutralControls();
@@ -103,12 +121,16 @@
         this.ctl.flaps = this.ctl.flaps || 0;
         const pre = ac.telemetry();
         this.wx.update(sdt, pre.tas * U.KT, pre.agl / FT);
-        ac.step(sdt, this.ctl);
+        ac.step(sdt, this.flightControls(pre, sdt));
       }
       const t = ac.telemetry();
       const events = ac.events;
       ac.events = [];
       this.handleEvents(events, t);
+      if (!this.paused && this.settings.assists.coach) {
+        const said = this.coach.update(t, sdt);
+        if (said) this.say(said);
+      }
       if (this.runner && !this.paused) this.runner.update(t, sdt, events);
       if (!this.paused) this.record(t, sdt);
 
@@ -129,12 +151,60 @@
       requestAnimationFrame((x) => this.loop(x));
     }
 
+    /** The controls the airplane actually gets: the pilot's, plus the auto-rudder assist if it is on. */
+    flightControls(t, dt) {
+      if (!this.settings.assists.autoRudder) return this.ctl;
+      const c = Object.assign(this.fctl, this.ctl);
+      const assist = this.autoRudder.update(t, dt);
+      // the pilot's feet always win: any rudder input of their own replaces the assist
+      if (Math.abs(this.ctl.rudder) < 0.04) c.rudder = M.clamp(assist, -1, 1);
+      if (!t.onGround) this.usedAutoRudder = true;
+      return c;
+    }
+
     record(t, dt) {
+      this.flightTime += dt;
+      if (!t.onGround) this.airTime += dt;
       this.recT += dt;
       if (this.recT < 0.25) return;
       this.recT = 0;
-      this.recorder.push({ t: t.time, alt: t.altInd, ias: t.ias, bank: t.bank, vs: t.vs, step: this.runner ? this.runner.i : 0 });
+      this.recorder.push({ t: t.time, alt: t.altInd, ias: t.ias, bank: t.bank, vs: t.vs, n: t.n, e: t.e, agl: t.agl, step: this.runner ? this.runner.i : 0 });
       if (this.recorder.length > 4000) this.recorder.shift();
+    }
+
+    /** The instructor speaks: a caption in the view, and aloud if the voice is switched on. */
+    say(m) {
+      const el = $('cfi');
+      el.className = m.kind || '';
+      el.querySelector('span').textContent = m.text;
+      clearTimeout(this.cfiTimer);
+      this.cfiTimer = setTimeout(() => el.classList.add('hidden'), 6500);
+      this.cfiRule = m.id;
+      this.cfiShown = performance.now();
+      this.cfiClear = 0;
+      if (this.settings.assists.voice && this.settings.sound && window.speechSynthesis) {
+        try {
+          if (m.pri >= 75) speechSynthesis.cancel();
+          const u = new SpeechSynthesisUtterance(m.text.replace(/\(.*?\)/g, ''));
+          u.rate = 1.12;
+          u.volume = 0.9;
+          speechSynthesis.speak(u);
+        } catch (e) {
+          /* no speech engine: the caption is enough */
+        }
+      }
+    }
+
+    /** Keep the approach that led to a touchdown, and score it. */
+    logLanding(td, t) {
+      const D = FS.Debrief;
+      // one more sample right at touchdown so the trace reaches the ground
+      const samples = this.recorder.concat([{ t: td.time, n: td.n, e: td.e, agl: 0, ias: td.ias }]);
+      const trace = D.approachTrace(samples, td, this.world, t.hdg);
+      const score = D.landingScore(td, this.world, t.hdg);
+      const landing = { td, hdg: t.hdg, trace, score, crossing: D.thresholdCrossing(trace), stab: D.stability(trace, this.world) };
+      this.landings.push(landing);
+      return landing;
     }
 
     handleEvents(events, t) {
@@ -143,8 +213,10 @@
           const td = ev.data;
           this.sound.chirp(Math.min(0.5, 0.08 + td.vsFpm / 1500));
           const q = td.vsFpm < 300 ? 'good' : td.vsFpm < 600 ? 'warn' : 'bad';
-          const where = `${Math.round(td.n * FT)} ft past the threshold, ${Math.abs(td.e * FT).toFixed(0)} ft ${td.e > 0 ? 'right' : 'left'} of centreline`;
-          this.toast(`Touchdown: ${Math.round(td.vsFpm)} fpm, ${td.firstGear} first — ${where}`, q, 5000);
+          const fr = FS.Debrief.landingFrame(td, this.world, t.hdg);
+          const where = fr.onRunway ? `${Math.round(fr.along * FT)} ft past the threshold, ${Math.abs(fr.lat * FT).toFixed(0)} ft ${fr.lat > 0 ? 'right' : 'left'} of centreline` : 'off the runway';
+          const ld = this.logLanding(td, t);
+          this.toast(`Touchdown: ${Math.round(td.vsFpm)} fpm, ${td.firstGear} first — ${where}. Landing score ${ld.score.score}/100`, q, 6000);
         }
         if (ev.type === 'contact' && this.ac.touchdown == null) this.sound.chirp(0.1);
         if (ev.type === 'crash') {
@@ -191,6 +263,16 @@
       this.map.options = S.map || {};
       this.map.clearTrail();
       this.recorder = [];
+      this.landings = [];
+      this.flightTime = 0;
+      this.airTime = 0;
+      this.usedAutoRudder = false;
+      this.logged = false;
+      this.coach.reset();
+      this.coach.setMuted(COACH_MUTE[lesson.id]);
+      this.autoRudder.reset();
+      $('cfi').classList.add('hidden');
+      if (window.speechSynthesis) speechSynthesis.cancel();
       this.warnState = {};
       this.hideBanner();
       this.runner = new FS.LessonRunner(lesson, this.ac, this.world, this);
@@ -223,7 +305,11 @@
     }
 
     onLessonFinished(d) {
-      if (this.lesson.free) return;
+      this.finishFlight(d);
+      if (this.lesson.free) {
+        if (this.flightTime > 5) setTimeout(() => this.showDebrief(d), this.ac.crashed ? 1800 : 300);
+        return;
+      }
       const prev = this.progress[this.lesson.id];
       const rank = { pass: 3, marginal: 2, fail: 1 };
       if (d.completed || d.overall === 'fail') {
@@ -233,18 +319,51 @@
       setTimeout(() => this.showDebrief(d), this.ac.crashed ? 1800 : 600);
     }
 
+    /** Score the flight and write it in the logbook (once per flight). */
+    finishFlight(d) {
+      const D = FS.Debrief;
+      const best = this.landings.length ? Math.max(...this.landings.map((l) => l.score.score)) : null;
+      const avg = this.landings.length ? Math.round(this.landings.reduce((a, l) => a + l.score.score, 0) / this.landings.length) : null;
+      d.score = this.lesson.free ? avg : D.lessonScore(d.items, d.overall === 'fail');
+      d.landings = this.landings;
+      d.said = this.coach.summary();
+      d.autoRudder = this.usedAutoRudder;
+      d.flightTime = this.flightTime;
+      if (this.logged || this.flightTime < 20) return;
+      this.logged = true;
+      this.logbook.push({
+        at: Date.now(),
+        id: this.lesson.id,
+        title: this.lesson.title,
+        free: !!this.lesson.free,
+        overall: this.ac.crashed ? 'fail' : d.overall,
+        crashed: !!this.ac.crashed,
+        score: d.score,
+        secs: Math.round(this.flightTime),
+        air: Math.round(this.airTime),
+        landings: this.landings.length,
+        bestLanding: best,
+        calls: d.said.reduce((a, x) => a + x.count, 0),
+        ar: this.usedAutoRudder,
+      });
+      if (this.logbook.length > 300) this.logbook.shift();
+      this.persist();
+    }
+
     showDebrief(d) {
       this.paused = true;
+      this.renderDebriefExtras(d);
+      $('deb-retry').textContent = d.lesson.free ? 'Fly again' : 'Retry';
       $('deb-title').textContent = d.lesson.title;
       const badge = $('deb-badge');
       const label = { pass: 'Satisfactory', marginal: 'Needs polish', fail: 'Unsatisfactory', info: 'Complete' }[d.overall];
       badge.textContent = label;
       badge.className = `badge ${d.overall}`;
-      $('deb-reason').textContent = d.failReason || '';
+      $('deb-reason').textContent = d.lesson.free && !this.ac.crashed ? '' : d.failReason || '';
       const box = $('deb-items');
       box.innerHTML = '';
       const icon = { pass: '✓', marginal: '~', fail: '✗', info: 'i' };
-      if (!d.items.length) box.innerHTML = '<div class="note">Nothing was graded in this lesson — it\'s about seeing and feeling.</div>';
+      if (!d.items.length && !d.landings.length) box.innerHTML = `<div class="note">${d.lesson.free ? 'No landings on this flight, so there is nothing to score. The chart above is your altitude, airspeed and bank.' : "Nothing was graded in this lesson — it's about seeing and feeling."}</div>`;
       for (const it of d.items) {
         const el = document.createElement('div');
         el.className = 'deb-item';
@@ -257,6 +376,67 @@
       $('deb-next').classList.toggle('hidden', !next || !!next.free);
       $('debrief').classList.remove('hidden');
       this.drawDebriefChart();
+      const last = d.landings[d.landings.length - 1];
+      if (last) FS.Debrief.drawApproach($('deb-approach'), last, this.world);
+    }
+
+    /** Headline numbers, the approach analysis, landing list and what the instructor said. */
+    renderDebriefExtras(d) {
+      const esc = (x) => String(x).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+      const cls = (v) => (v == null ? '' : v >= 80 ? 'pass' : v >= 60 ? 'marginal' : 'fail');
+      const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+      const stats = [];
+      if (d.score != null) stats.push(`<div class="stat ${cls(d.score)}"><b>${d.score}</b><small>${d.lesson.free ? 'avg landing score' : 'score / 100'}</small></div>`);
+      stats.push(`<div class="stat"><b>${mmss(d.flightTime)}</b><small>flight time</small></div>`);
+      if (d.landings.length) stats.push(`<div class="stat"><b>${d.landings.length}</b><small>landing${d.landings.length > 1 ? 's' : ''}</small></div>`);
+      const calls = d.said.reduce((a, x) => a + x.count, 0);
+      stats.push(`<div class="stat ${calls ? '' : 'pass'}"><b>${calls}</b><small>instructor call-outs</small></div>`);
+      if (d.autoRudder) stats.push('<div class="stat"><b>ON</b><small>auto-rudder assist</small></div>');
+      $('deb-stats').innerHTML = stats.join('');
+
+      // approach analysis for the last landing
+      const last = d.landings[d.landings.length - 1];
+      $('deb-approach-box').classList.toggle('hidden', !last);
+      if (last) {
+        $('deb-approach-title').textContent = d.landings.length > 1 ? `Your approach — landing ${d.landings.length} of ${d.landings.length}` : 'Your approach';
+        const notes = [];
+        const c = last.crossing, st = last.stab;
+        if (c) notes.push(`Crossed the threshold at <b>${Math.round(c.agl)} ft</b> and <b>${Math.round(c.ias)} kt</b> (aim for about 50 ft and 63–68 kt).`);
+        if (st) {
+          notes.push(`Last half-mile: averaged <b>${Math.round(st.pathRmsFt)} ft</b> off the 3° path and <b>${Math.round(st.latRmsFt)} ft</b> off the centreline, airspeed ${Math.round(st.iasLo)}–${Math.round(st.iasHi)} kt.`);
+          if (st.iasHi - st.iasLo > 10) notes.push('That airspeed spread is wide. Pick a pitch attitude, trim it, and make small power changes for the path.');
+          else if (st.pathRmsFt < 25 && st.iasHi - st.iasLo <= 8) notes.push('That is a stabilized approach: the landing was decided before the flare.');
+        }
+        $('deb-approach-notes').innerHTML = notes.join(' ');
+      }
+
+      // every landing of the flight, with where the points went
+      let html = '';
+      if (d.landings.length && (d.lesson.free || d.landings.length > 1)) {
+        html += '<div class="group-title">Landings</div>';
+        d.landings.forEach((l, i) => {
+          const p = l.score.parts, td = l.td;
+          const weakest = Object.keys(p).sort((a, b) => p[a] - p[b])[0];
+          const advice = {
+            sink: 'Sink rate cost the most: start the flare a little higher and keep easing back as it settles.',
+            point: l.score.alongFt > this.world.runway.aimN * FT + 400 ? 'Landed long: usually extra speed over the threshold.' : 'Landed short of the touchdown box: hold the aiming point still in the windshield.',
+            centreline: 'Centreline cost the most: correct drift early with small banks, all the way down.',
+            alignment: 'Touched down crabbed or drifting: rudder to point the nose down the runway, aileron to stop the drift.',
+            attitude: 'Flat or nose-first: keep raising the nose in the flare so the mains touch first.',
+          }[weakest];
+          const where = l.score.onRunway ? `${Math.round(l.score.alongFt)} ft past threshold, ${Math.abs(l.score.latFt).toFixed(0)} ft ${l.score.latFt > 0 ? 'R' : 'L'} of centreline` : 'OFF the runway';
+          const st = cls(l.score.score);
+          html += `<div class="deb-item"><span class="ic ${st}">${{ pass: '✓', marginal: '~', fail: '✗' }[st]}</span><span>Landing ${i + 1} — <b>${l.score.score}/100</b></span><span class="v">${Math.round(Math.max(0, td.vsFpm))} fpm · ${where}</span><span class="n">${p[weakest] < 90 ? advice : 'Nothing to pick at. Do it again the same way.'}</span></div>`;
+        });
+      }
+      if (d.said.length) {
+        html += '<div class="group-title">What your instructor had to say</div>';
+        for (const x of d.said.slice(0, 6)) html += `<div class="said"><span class="x">×${x.count}</span><span>${esc(x.text)}</span></div>`;
+        html += `<div class="note">The call you hear most often is your next thing to practise${d.autoRudder ? '. Auto-rudder was on, so rudder errors were hidden from this list' : ''}.</div>`;
+      } else if (d.flightTime > 30 && this.settings.assists.coach) {
+        html += `<div class="note">Your instructor had nothing to add on this flight${d.autoRudder ? ' (auto-rudder was on)' : ''}.</div>`;
+      }
+      $('deb-coach').innerHTML = html;
     }
 
     drawDebriefChart() {
@@ -336,6 +516,9 @@
         case 'KeyH':
           this.toggleAids();
           return true;
+        case 'KeyG':
+          this.toggleAutoRudder();
+          return true;
         case 'KeyP':
           this.togglePause();
           return true;
@@ -402,6 +585,16 @@
       this.view.showAids = !this.view.showAids;
       this.settings.aids = this.view.showAids;
       this.persist();
+      this.buildAssists();
+      this.updateButtons();
+    }
+    toggleAutoRudder() {
+      const a = this.settings.assists;
+      a.autoRudder = !a.autoRudder;
+      this.autoRudder.reset();
+      this.toast(a.autoRudder ? 'Auto-rudder ON: the sim keeps the ball centred and tracks the runway. Your own rudder input still overrides it.' : 'Auto-rudder OFF: your feet are flying the rudder now.', a.autoRudder ? 'good' : '', 4000);
+      this.persist();
+      this.buildAssists();
       this.updateButtons();
     }
     togglePause() {
@@ -441,6 +634,7 @@
       $('btn-view').onclick = () => this.cycleView();
       $('btn-aids').onclick = () => this.toggleAids();
       $('btn-yoke').onclick = () => this.toggleYoke();
+      $('btn-rudder').onclick = () => this.toggleAutoRudder();
       $('btn-slow').onclick = () => this.cycleSpeed();
       $('btn-pause').onclick = () => this.togglePause();
       $('btn-restart').onclick = () => this.restart();
@@ -452,7 +646,7 @@
       };
       $('btn-ack').onclick = () => this.runner && this.runner.ack();
       $('btn-skip').onclick = () => this.runner && !this.runner.done && this.runner.skip();
-      $('btn-end').onclick = () => this.runner && !this.runner.done && this.runner.finish('Lesson ended early by the pilot.');
+      $('btn-end').onclick = () => this.runner && !this.runner.done && this.runner.finish(this.lesson.free ? null : 'Lesson ended early by the pilot.');
       $('menu-close').onclick = () => this.closeMenu();
       $('brief-close').onclick = () => this.openMenu();
       $('brief-back').onclick = () => this.openMenu();
@@ -525,6 +719,7 @@
       $('btn-view').textContent = `View: ${VIEW_NAMES[this.view.mode]}`;
       $('btn-aids').classList.toggle('on', this.view.showAids);
       $('btn-yoke').classList.toggle('on', this.input.mouseYoke);
+      $('btn-rudder').classList.toggle('on', this.settings.assists.autoRudder);
       $('btn-slow').textContent = `${this.timeScale}×`;
       $('btn-slow').classList.toggle('on', this.timeScale !== 1);
       $('btn-pause').textContent = this.paused && !this.anyOverlay() ? 'Resume' : 'Pause';
@@ -567,6 +762,11 @@
 
     // ================================================================= HUD, side panel
     updateHUD(t) {
+      // an instructor stops talking once you have fixed the thing: clear the caption early
+      if (this.cfiRule && !$('cfi').classList.contains('hidden') && !this.paused) {
+        this.cfiClear = this.coach.isActive(this.cfiRule) ? 0 : this.cfiClear + 1;
+        if (this.cfiClear > 15 && performance.now() - this.cfiShown > 3000) $('cfi').classList.add('hidden');
+      }
       if (this.view.showAids) {
         $('h-ias').textContent = Math.round(t.ias);
         $('h-alt').textContent = Math.round(t.altInd).toLocaleString();
@@ -611,7 +811,8 @@
       $('step-tip').innerHTML = st && st.tip ? `💡 ${st.tip}` : '';
       $('btn-ack').classList.toggle('hidden', !(st && st.manual));
       $('btn-skip').classList.toggle('hidden', !!r.lesson.free);
-      $('btn-end').classList.toggle('hidden', !!r.lesson.free);
+      $('btn-end').textContent = r.lesson.free ? 'End flight & debrief' : 'End lesson';
+      $('btn-end').classList.toggle('hidden', r.done);
     }
 
     updateLessonPanel() {
@@ -716,6 +917,7 @@
       document.querySelectorAll('#menu .tab').forEach((t) => t.classList.toggle('hidden', t.id !== `tab-${name}`));
       if (name === 'wb') this.drawWB();
       if (name === 'weather') this.updateWxReadout();
+      if (name === 'logbook') this.buildLogbook();
     }
 
     buildMenu() {
@@ -723,7 +925,126 @@
       this.buildWeather();
       this.buildWB();
       this.buildControls();
+      this.buildAssists();
+      this.buildLogbook();
       this.buildAbout();
+    }
+
+    // ---------------------------------------------------------------- instructor & assists tab
+    buildAssists() {
+      const el = $('tab-assists');
+      const a = this.settings.assists;
+      const sw = (id, on, title, text) => `<label class="switch"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><b>${title}</b><span>${text}</span></label>`;
+      el.innerHTML = `
+        <p class="muted">The flight model is always the full one: real stalls, left-turning tendencies, wind and ground effect. Assists do not change the physics. They take one job off your hands so you can learn the others first, the way an instructor works the rudder or the radio on your first lessons. Switch them off as you improve.</p>
+        <div class="group-title">Instructor</div>
+        ${sw('as-coach', a.coach, 'Live instructor call-outs', 'A CFI in the right seat watches every flight, lessons and free flight, and speaks up when an error has lasted a moment: airspeed low on final, more right rudder in the climb, ballooning in the flare, holding yoke pressure instead of trimming. One thing at a time, most urgent first, always with the reason.')}
+        ${sw('as-voice', a.voice, 'Speak the call-outs aloud', "Uses your browser's speech voice, so you can keep your eyes outside instead of reading. Needs sound on.")}
+        <div class="group-title">Flying assists</div>
+        ${sw('as-rudder', a.autoRudder, 'Auto-rudder <kbd>G</kbd>', 'Keeps the ball centred in the air and the nose on the runway heading during the takeoff and landing roll. Any rudder input of your own overrides it at once. Fly your first lessons with it on, then turn it off for Coordinated Turns and everything after. Flights flown with it are marked in the debrief and logbook.')}
+        ${sw('as-aids', this.view.showAids, 'Flight-path marker and digital read-outs <kbd>H</kbd>', 'Shows where the airplane is actually going (not where the nose points) plus digital airspeed, altitude and angle of attack. The gap between the nose and the flight-path marker is your angle of attack.')}
+        <p class="note">Other ways to make a hard moment easier: <kbd>T</kbd> slows the simulation to half or quarter speed (good for the flare), <kbd>P</kbd> pauses, and the Weather tab sets calm air. In chase view (<kbd>C</kbd>) the four force arrows are drawn on the airplane.</p>`;
+      $('as-coach').onchange = (e) => {
+        a.coach = e.target.checked;
+        if (!a.coach) $('cfi').classList.add('hidden');
+        this.persist();
+      };
+      $('as-voice').onchange = (e) => {
+        a.voice = e.target.checked;
+        this.persist();
+        if (a.voice) this.say({ text: 'Instructor voice on.', kind: '', pri: 0 });
+        else if (window.speechSynthesis) speechSynthesis.cancel();
+      };
+      $('as-rudder').onchange = () => this.toggleAutoRudder();
+      $('as-aids').onchange = () => this.toggleAids();
+    }
+
+    // ---------------------------------------------------------------- logbook tab
+    buildLogbook() {
+      const el = $('tab-logbook');
+      const log = this.logbook;
+      if (!log.length) {
+        el.innerHTML = '<p class="muted">Your logbook is empty. Every lesson and free flight you fly is recorded here with its score, landings and how often the instructor had to speak up, so you can see the trend rather than judge yourself on one flight.</p>';
+        return;
+      }
+      const hrs = log.reduce((a, x) => a + x.secs, 0) / 3600;
+      const ldg = log.reduce((a, x) => a + x.landings, 0);
+      const scored = log.filter((x) => x.score != null);
+      const recent = scored.slice(-10);
+      const avg = recent.length ? Math.round(recent.reduce((a, x) => a + x.score, 0) / recent.length) : null;
+      const passed = FS.LESSONS.filter((l) => !l.free && this.progress[l.id] && this.progress[l.id].best === 'pass').length;
+      const total = FS.LESSONS.filter((l) => !l.free).length;
+      const cls = (v) => (v == null ? '' : v >= 80 ? 'pass' : v >= 60 ? 'marginal' : 'fail');
+      const when = (ms) => new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+      const res = { pass: 'Satisfactory', marginal: 'Needs polish', fail: 'Unsatisfactory', info: '—' };
+      el.innerHTML = `
+        <div class="stats">
+          <div class="stat"><b>${hrs.toFixed(1)}</b><small>hours flown</small></div>
+          <div class="stat"><b>${log.length}</b><small>flights</small></div>
+          <div class="stat"><b>${ldg}</b><small>landings</small></div>
+          <div class="stat ${passed === total ? 'pass' : ''}"><b>${passed}/${total}</b><small>lessons passed</small></div>
+          ${avg != null ? `<div class="stat ${cls(avg)}"><b>${avg}</b><small>avg score, last ${recent.length}</small></div>` : ''}
+        </div>
+        <canvas id="log-chart"></canvas>
+        <table class="log-table">
+          <tr><th>When</th><th>Flight</th><th>Result</th><th class="num">Score</th><th class="num">Time</th><th class="num">Ldg</th><th class="num">Best ldg</th><th class="num">Call-outs</th><th>Assist</th></tr>
+          ${log.slice().reverse().slice(0, 60).map((x) => `<tr><td>${when(x.at)}</td><td>${x.title}</td><td>${x.crashed ? '<span class="pill fail">crash</span>' : x.free ? '—' : `<span class="pill ${x.overall}">${res[x.overall] || x.overall}</span>`}</td><td class="num">${x.score ?? '—'}</td><td class="num">${mmss(x.secs)}</td><td class="num">${x.landings || '—'}</td><td class="num">${x.bestLanding ?? '—'}</td><td class="num">${x.calls}</td><td>${x.ar ? 'auto-rudder' : ''}</td></tr>`).join('')}
+        </table>
+        <div class="row" style="margin-top:12px"><button id="log-clear" class="ghost">Clear logbook…</button></div>`;
+      $('log-clear').onclick = () => {
+        if (!confirm('Erase every logbook entry? Lesson progress is kept.')) return;
+        this.logbook = [];
+        this.persist();
+        this.buildLogbook();
+      };
+      requestAnimationFrame(() => this.drawLogChart(scored));
+    }
+
+    /** Score per flight, oldest to newest, with a 5-flight moving average: the trend is the point. */
+    drawLogChart(scored) {
+      const cv = $('log-chart');
+      if (!cv) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const r = cv.getBoundingClientRect();
+      if (r.width < 10) return;
+      cv.width = r.width * dpr;
+      cv.height = r.height * dpr;
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const W = r.width, H = r.height, pl = 34, pr = 12, pt = 22, pb = 14;
+      ctx.font = '11px system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillText('Score per flight (dots) and 5-flight average (line)', pl, 14);
+      const Y = (v) => pt + (1 - v / 100) * (H - pt - pb);
+      const data = scored.slice(-60);
+      const X = (i) => pl + (data.length < 2 ? 0.5 : i / (data.length - 1)) * (W - pl - pr);
+      for (const v of [0, 60, 80, 100]) {
+        ctx.strokeStyle = v === 80 ? 'rgba(62,207,122,0.35)' : 'rgba(255,255,255,0.08)';
+        ctx.beginPath();
+        ctx.moveTo(pl, Y(v));
+        ctx.lineTo(W - pr, Y(v));
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillText(String(v), 8, Y(v) + 4);
+      }
+      if (!data.length) return;
+      ctx.strokeStyle = '#ffb547';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      data.forEach((x, i) => {
+        const w = data.slice(Math.max(0, i - 4), i + 1);
+        const m = w.reduce((a, y) => a + y.score, 0) / w.length;
+        if (i) ctx.lineTo(X(i), Y(m));
+        else ctx.moveTo(X(i), Y(m));
+      });
+      ctx.stroke();
+      data.forEach((x, i) => {
+        ctx.fillStyle = x.crashed ? '#ff5a4e' : x.score >= 80 ? '#3ecf7a' : x.score >= 60 ? '#f3c33b' : '#ff5a4e';
+        ctx.beginPath();
+        ctx.arc(X(i), Y(x.score), 3.2, 0, 6.3);
+        ctx.fill();
+      });
     }
 
     buildLessonCards() {
@@ -988,6 +1309,7 @@
           ${k(['1', '2', '3', '4', '5'], 'Look left · front-left · ahead · front-right · right')}
           ${k(['6', '7'], 'Look back-left / back-right')}
           ${k(['H'], 'Teaching aids (flight-path marker, digital HUD)')}
+          ${k(['G'], 'Auto-rudder assist on/off')}
           ${k(['N'], 'Continue (instructor steps that wait for you)')}
           ${k(['P'], 'Pause')}
           ${k(['T'], 'Simulation speed 1× → ½× → ¼× → 2×')}
@@ -1056,6 +1378,7 @@
     persist() {
       this.store.settings = this.settings;
       this.store.progress = this.progress;
+      this.store.logbook = this.logbook;
       save(this.store);
     }
   }

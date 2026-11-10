@@ -34,6 +34,7 @@ Start with **Menu → Controls**, then **Lessons → The Four Forces**.
 | **Mouse yoke** | click the 3D view or `Y` — mouse position = yoke, wheel = trim |
 | Views | `C` cockpit → chase → tower · `1`–`5` look left…right |
 | Teaching aids | `H` flight-path marker + digital HUD |
+| Auto-rudder assist | `G` |
 | Continue / pause / restart / slow-mo | `N` / `P` / `R` / `T` |
 
 The keyboard yoke is **spring-loaded**: hold a key to deflect, release and it returns to the *trimmed* neutral —
@@ -53,6 +54,34 @@ just like a real yoke. That's why trimming matters (and why the mouse yoke is th
 Each lesson has a **briefing** (the theory, with analogies), a step-by-step **instructor** panel with live
 tolerance meters, orange "grease-pencil" **target marks** on the instruments, and a **debrief** with
 pass/fail per ACS item, notes, and a chart of your flight.
+
+## Your instructor, the assists and the debrief
+
+**Live instructor.** A CFI sits in the right seat on every flight, lessons and free flight alike
+(`js/coach.js`). It speaks up only when an error has lasted a moment, one thing at a time, most urgent
+first, and always with the reason: *"More right rudder. At full power and a high nose the propeller
+pulls the nose left."* It knows the phases of flight (takeoff roll, climb-out, cruise, approach, flare)
+and covers about 25 common student errors: low or slow on final, ballooning, a flat flare, drifting off
+the centreline, holding yoke pressure instead of trimming, steep banks low to the ground, spin entry.
+The caption clears once you fix the problem. It can also talk aloud (Menu → Instructor & assists).
+
+**Assists.** The physics is always the full model. The one flying assist is **auto-rudder** (`G`): it
+keeps the ball centred in the air and the nose on the runway during the takeoff and landing roll, so
+you can learn pitch, bank and power first. Your own rudder input overrides it instantly. Turn it off
+from *Coordinated Turns* onward. Slow motion (`T`) and calm air (Weather tab) are the other training
+wheels.
+
+**Debrief.** Every flight ends with one, including free flight ("End flight & debrief"):
+
+- a 0–100 score, flight time and how many times the instructor had to speak up;
+- for any landing, the **approach profile**: your height on final against the 3° glide path, coloured
+  by airspeed, with threshold-crossing height and speed and how stable the last half-mile was;
+- each touchdown scored on sink rate, touchdown point, centreline, alignment and attitude, with the
+  weakest one explained;
+- the instructor's call-outs ranked by how often you heard them. The top one is what to practise next.
+
+**Logbook.** Menu → Logbook keeps every flight (stored in your browser) with totals and a score trend
+line, so you judge yourself on the trend and not on one flight.
 
 ### A suggested path
 
@@ -107,7 +136,8 @@ npm test        # or: node --test tests/*.test.js
 
 The suite checks the atmosphere, W&B arithmetic, trim solver, POH performance, stall speeds and stall warning,
 hands-off stability, propeller RPM behaviour, ground handling, takeoff roll (sea level vs. hot & high), hard-landing
-detection, ground effect, spin-entry wing drop — and flies **scripted "student" autopilots** through the takeoff,
+detection, ground effect, spin-entry wing drop, the instructor's call-outs (including that it stays quiet on a
+well-flown approach), the auto-rudder and the landing scoring — and flies **scripted "student" autopilots** through the takeoff,
 straight-and-level, steep-turn and landing lessons to prove they're completable and graded correctly.
 
 ## Code map
@@ -122,7 +152,9 @@ straight-and-level, steep-turn and landing lessons to prove they're completable 
 | `js/render3d.js` | cockpit / chase / tower views on a 2D canvas, 3D force vectors |
 | `js/instruments.js` | six-pack, tachometer, AoA, G-meter, levers, annunciators |
 | `js/diagrams.js` | live four-forces diagram, moving map |
-| `js/lessons.js` | the syllabus and the instructor/grader |
+| `js/lessons.js` | the syllabus and the step-by-step lesson grader |
+| `js/coach.js` | the live instructor (error call-outs) and the auto-rudder assist |
+| `js/debrief.js` | landing scores, approach-profile analysis and chart |
 | `js/input.js`, `js/audio.js`, `js/app.js` | controls, synthesized sound, UI and main loop |
 
 ## Disclaimer

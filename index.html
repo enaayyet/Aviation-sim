@@ -16,6 +16,7 @@
           <span class="spacer"></span>
           <button id="btn-view" title="Change view (C)">View: Cockpit</button>
           <button id="btn-aids" title="Teaching aids: flight-path marker &amp; force vectors (H)">Aids</button>
+          <button id="btn-rudder" title="Auto-rudder assist: the sim keeps the ball centred and the nose on the runway (G)">Auto-rudder</button>
           <button id="btn-yoke" title="Fly with the mouse (Y or click the view)">Mouse yoke</button>
           <button id="btn-slow" title="Simulation speed (T)">1×</button>
           <button id="btn-pause" title="Pause (P)">Pause</button>
@@ -37,6 +38,7 @@
           </div>
           <canvas id="ctlpos" width="120" height="132" title="Your control positions: yoke (square), rudder (bottom), trim (side)"></canvas>
           <div id="banner" class="hidden"></div>
+          <div id="cfi" class="hidden"><b>CFI</b><span></span></div>
           <div id="toasts"></div>
           <div id="viewhint"></div>
         </div>
@@ -90,12 +92,16 @@
           <button data-tab="lessons" class="active">Lessons</button>
           <button data-tab="weather">Weather</button>
           <button data-tab="wb">Weight &amp; Balance</button>
+          <button data-tab="assists">Instructor &amp; assists</button>
+          <button data-tab="logbook">Logbook</button>
           <button data-tab="controls">Controls</button>
           <button data-tab="about">How it works</button>
         </nav>
         <div class="tab" id="tab-lessons"></div>
         <div class="tab hidden" id="tab-weather"></div>
         <div class="tab hidden" id="tab-wb"></div>
+        <div class="tab hidden" id="tab-assists"></div>
+        <div class="tab hidden" id="tab-logbook"></div>
         <div class="tab hidden" id="tab-controls"></div>
         <div class="tab hidden" id="tab-about"></div>
       </div>
@@ -129,8 +135,15 @@
           <div id="deb-badge" class="badge"></div>
         </header>
         <div id="deb-reason"></div>
+        <div id="deb-stats" class="stats"></div>
         <canvas id="deb-chart"></canvas>
+        <div id="deb-approach-box" class="hidden">
+          <div class="group-title" id="deb-approach-title">Your approach</div>
+          <canvas id="deb-approach"></canvas>
+          <div id="deb-approach-notes" class="note"></div>
+        </div>
         <div id="deb-items"></div>
+        <div id="deb-coach"></div>
         <footer>
           <button id="deb-menu" class="ghost">Lessons</button>
           <button id="deb-free" class="ghost">Keep flying</button>
@@ -145,6 +158,8 @@
     <script src="js/aircraft.js"></script>
     <script src="js/physics.js"></script>
     <script src="js/world.js"></script>
+    <script src="js/coach.js"></script>
+    <script src="js/debrief.js"></script>
     <script src="js/render3d.js"></script>
     <script src="js/instruments.js"></script>
     <script src="js/diagrams.js"></script>
