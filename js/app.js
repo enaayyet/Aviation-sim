@@ -58,6 +58,7 @@
           input: {},
           sound: true,
           aids: false,
+          readouts: true,
           assists: { coach: true, voice: false, autoRudder: false },
         },
         stored.settings || {}
@@ -743,7 +744,7 @@
       $('btn-pause').textContent = this.paused && !this.anyOverlay() ? 'Resume' : 'Pause';
       $('btn-sound').classList.toggle('on', this.settings.sound);
       $('btn-sound').textContent = this.settings.sound ? 'Sound on' : 'Sound off';
-      $('hud').classList.toggle('hidden', !this.view.showAids);
+      $('hud').classList.toggle('hidden', !this.settings.readouts);
       const hints = {
         cockpit: 'Look: <kbd>1</kbd>–<kbd>5</kbd> (3 = ahead)',
         chase: 'Drag to orbit · wheel to zoom · force vectors shown',
@@ -786,7 +787,13 @@
         this.cfiClear = this.coach.isActive(this.cfiRule) ? 0 : this.cfiClear + 1;
         if (this.cfiClear > 15 && performance.now() - this.cfiShown > 3000) $('cfi').classList.add('hidden');
       }
-      if (this.view.showAids) {
+      if (this.settings.readouts) {
+        // angle of attack against the critical angle: green with margin, amber when close, red at the stall warning
+        const frac = M.clamp(t.alpha / Math.max(1, t.alphaStall), 0, 1.1);
+        const chip = $('h-aoa-chip');
+        chip.classList.toggle('warn', !t.onGround && !t.stallWarn && t.alpha > t.alphaStall - 6);
+        chip.classList.toggle('bad', !t.onGround && (t.stallWarn || t.stalled));
+        $('h-aoa-bar').style.width = `${Math.round(Math.min(1, frac) * 100)}%`;
         $('h-ias').textContent = Math.round(t.ias);
         $('h-alt').textContent = Math.round(t.altInd).toLocaleString();
         $('h-vs').textContent = (t.vs >= 0 ? '+' : '') + Math.round(t.vs / 10) * 10;
@@ -961,7 +968,8 @@
         ${sw('as-voice', a.voice, 'Speak the call-outs aloud', "Uses your browser's speech voice, so you can keep your eyes outside instead of reading. Needs sound on.")}
         <div class="group-title">Flying assists</div>
         ${sw('as-rudder', a.autoRudder, 'Auto-rudder <kbd>G</kbd>', 'Keeps the ball centred in the air and the nose on the runway heading during the takeoff and landing roll. Any rudder input of your own overrides it at once. Fly your first lessons with it on, then turn it off for Coordinated Turns and everything after. Flights flown with it are marked in the debrief and logbook.')}
-        ${sw('as-aids', this.view.showAids, 'Flight-path marker and digital read-outs <kbd>H</kbd>', 'Shows where the airplane is actually going (not where the nose points) plus digital airspeed, altitude and angle of attack. The gap between the nose and the flight-path marker is your angle of attack.')}
+        ${sw('as-aids', this.view.showAids, 'Flight-path marker and airflow tufts <kbd>H</kbd>', 'Shows where the airplane is actually going (not where the nose points), and wool tufts on the wing that flail when the airflow separates. The gap between the nose and the flight-path marker is your angle of attack.')}
+        ${sw('as-readouts', this.settings.readouts, 'Digital read-outs over the view', 'Airspeed, altitude, vertical speed, heading, angle of attack, ground speed and height above the ground, always in sight. The angle-of-attack box fills toward the critical angle and turns amber, then red, as you near the stall.')}
         <p class="note">Other ways to make a hard moment easier: <kbd>T</kbd> slows the simulation to half or quarter speed (good for the flare), <kbd>P</kbd> pauses, and the Weather tab sets calm air. In chase view (<kbd>C</kbd>) the four force arrows are drawn on the airplane.</p>`;
       $('as-coach').onchange = (e) => {
         a.coach = e.target.checked;
@@ -976,6 +984,11 @@
       };
       $('as-rudder').onchange = () => this.toggleAutoRudder();
       $('as-aids').onchange = () => this.toggleAids();
+      $('as-readouts').onchange = (e) => {
+        this.settings.readouts = e.target.checked;
+        this.persist();
+        this.updateButtons();
+      };
     }
 
     // ---------------------------------------------------------------- logbook tab

@@ -37,7 +37,7 @@ current browser has; on a slow machine the sim lowers its own resolution to stay
 | Brakes / parking brake | `Space` (hold) / `B` |
 | **Mouse yoke** | click the 3D view or `Y` — mouse position = yoke, wheel = trim |
 | Views | `C` cockpit → chase → tower → fly-by · `1`–`5` look left…right |
-| Teaching aids | `H` flight-path marker + digital HUD + airflow tufts on the wing |
+| Teaching aids | `H` flight-path marker + airflow tufts on the wing |
 | Auto-rudder assist | `G` |
 | Continue / pause / restart / slow-mo | `N` / `P` / `R` / `T` |
 
