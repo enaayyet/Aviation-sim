@@ -29,8 +29,8 @@
     // sun elevation, zenith, horizon, sun colour, sun intensity, sky-fill intensity, ground bounce
     { el: -14, zen: 0x02040a, hor: 0x0b1222, sun: 0x8fa4d8, si: 0.28, hi: 0.16, gnd: 0x06080c },
     { el: -5, zen: 0x0b1838, hor: 0x4a465c, sun: 0xff7a3c, si: 0.0, hi: 0.24, gnd: 0x101216 },
-    { el: 0, zen: 0x1d3f7c, hor: 0xc9a48c, sun: 0xff8a45, si: 1.0, hi: 0.55, gnd: 0x2a2620 },
-    { el: 7, zen: 0x2a5ca8, hor: 0xcfd0cc, sun: 0xffc58a, si: 2.3, hi: 0.8, gnd: 0x4a463a },
+    { el: 0, zen: 0x1d3f7c, hor: 0xc9a48c, sun: 0xff8a45, si: 1.0, hi: 0.7, gnd: 0x2a2620 },
+    { el: 7, zen: 0x2a5ca8, hor: 0xcfd0cc, sun: 0xffc58a, si: 2.8, hi: 1.25, gnd: 0x4a463a },
     { el: 22, zen: 0x2b66bd, hor: 0xbdd6ea, sun: 0xfff0dc, si: 3.0, hi: 1.0, gnd: 0x5a5a48 },
     { el: 60, zen: 0x2460c0, hor: 0xb4d0ea, sun: 0xfffaf0, si: 3.3, hi: 1.05, gnd: 0x60604c },
   ];
@@ -72,8 +72,8 @@
     float fbm(vec2 p){ return 0.5*vnoise(p) + 0.3*vnoise(p*2.13+7.1) + 0.2*vnoise(p*4.31+3.7); }
   `;
   /** A Lambert material that adds procedural ground texture (so speed and height are readable). */
-  function groundMaterial({ rows = 0, patch = 0, grain = 1, color = 0xffffff, vertexColors = true } = {}) {
-    const m = new THREE.MeshLambertMaterial({ vertexColors, color, depthWrite: false });
+  function groundMaterial({ rows = 0, patch = 0, grain = 1, color = 0xffffff, vertexColors = true, depthWrite = false } = {}) {
+    const m = new THREE.MeshLambertMaterial({ vertexColors, color, depthWrite });
     m.onBeforeCompile = (sh) => {
       sh.uniforms.uRows = { value: rows };
       sh.uniforms.uPatch = { value: patch };
@@ -396,6 +396,8 @@
         const n = 0.55 * ridge * ridge + 0.3 * vn(x / 2300, z / 2300) + 0.15 * vn(x / 900 + 9, z / 900);
         return ramp * (0.18 + 0.82 * big) * n * 2100;
       };
+      /** Terrain height (m above the field) at a north/east position — the mountains are solid. */
+      this.heightAt = (n, e) => height(e, -n);
       const NR = 40, NA = 240;
       const rows = [];
       for (let i = 0; i <= NR; i++) {
@@ -423,7 +425,7 @@
         c.lerp(snow, M.smoothstep(1350, 1650, h - slope * 500));
         ca.setXYZ(i, c.r, c.g, c.b);
       }
-      const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true }));
+      const m = new THREE.Mesh(g, groundMaterial({ grain: 1.6, depthWrite: true }));
       m.frustumCulled = false;
       this.scene.add(m);
     }
@@ -467,7 +469,7 @@
       // ---- trees (instanced)
       const trees = objs.filter((o) => o.type === 'tree');
       {
-        const canopy = new THREE.IcosahedronGeometry(1, 2);
+        const canopy = new THREE.IcosahedronGeometry(1, 1);
         const p = canopy.attributes.position;
         const v = new THREE.Vector3();
         for (let i = 0; i < p.count; i++) {

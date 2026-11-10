@@ -58,6 +58,99 @@
   const LESSONS = [
     // ============================================================ FUNDAMENTALS
     {
+      id: 'first-flight',
+      group: 'Fundamentals',
+      title: 'First Flight: What Each Control Does',
+      minutes: 7,
+      summary: 'Never flown? Start here. One control at a time: pitch, roll, yaw, power and trim — and what each one really changes.',
+      autoRudder: true,
+      briefing: `
+        <p><b>You are already flying.</b> The airplane starts in the air, trimmed and stable, 3,000 ft above the fields. A trainer like this Warrior <i>wants</i> to fly straight: let go and it carries on. Nothing here needs fast hands — every input is a small, slow pressure, then you wait and watch.</p>
+        <p><b>An airplane moves about three axes, and each has its own control:</b></p>
+        <ul>
+          <li><b>Pitch</b> (nose up / down) — the yoke, forward and back. It moves the <i>stabilator</i>, the whole horizontal tail.</li>
+          <li><b>Roll</b> (one wing down) — the yoke, left and right. It moves the <i>ailerons</i>, out near the wingtips, in opposite directions.</li>
+          <li><b>Yaw</b> (nose left / right) — the rudder pedals. They move the <i>rudder</i> on the fin.</li>
+        </ul>
+        <p>The fourth control is the <b>throttle</b>: how much power the engine makes. It is the airplane's energy supply.</p>
+        <p class="analogy">Analogy from your world: the throttle is how much <b>capital</b> you deploy, and the yoke decides where it goes — <b>speed or height</b>. Pull back and you convert airspeed into altitude, like rotating out of one position into another: the account total (energy) barely moves. Only the throttle adds new money, and only drag withdraws it. Every manoeuvre you will ever fly is that one trade.</p>
+        <p><b>How to read the picture:</b> look at where the dark top of the instrument panel sits against the horizon. Horizon high in the windshield means the nose is low; horizon sinking behind the nose means the nose is high. That picture — the <i>attitude</i> — is your main instrument. The gauges only confirm it.</p>
+        <p><b>The keys:</b> <kbd>↓</kbd> pulls the yoke back (nose up), <kbd>↑</kbd> pushes it forward. <kbd>←</kbd> <kbd>→</kbd> roll. <kbd>A</kbd> <kbd>D</kbd> rudder. <kbd>W</kbd> <kbd>S</kbd> throttle. Or click the view to fly with the mouse, which is smoother. <b>Auto-rudder is on</b> for this lesson so you can meet the controls one at a time. Press <kbd>C</kbd> at any moment to step outside and watch the surfaces move.</p>`,
+      setup: { air: { n: -9000, e: -1500, altFt: 3600, hdg: 360, ias: 100 }, weather: FIELD, loading: LOAD_NORMAL },
+      steps: [
+        { say: 'Hands off. The airplane is trimmed: it flies itself. Find the horizon, and notice how much of the windshield is sky and how much is ground. That picture is "straight and level".', done: (t, c) => c.stepTime > 8 },
+        {
+          say: '<b>Pitch.</b> Ease the yoke back (<kbd>↓</kbd>, small taps or a gentle hold) until the nose is about 10° above the horizon. Watch the airspeed while you do it.',
+          tip: 'You did not add any power, so the climb is paid for with airspeed. Nose up → slower.',
+          done: (t) => t.pitch > 8,
+          hold: 1.5,
+        },
+        {
+          say: 'Now ease the yoke forward (<kbd>↑</kbd>) until the nose is a little below the horizon. The airspeed comes back — and then some.',
+          tip: 'Height traded back into speed. The yoke is really a speed control: it sets angle of attack.',
+          done: (t) => t.pitch < -3,
+          hold: 1.5,
+        },
+        { say: 'Let go and let it settle back to level. A stable airplane hunts for the speed it was trimmed for, like a pendulum finding the bottom.', done: (t) => Math.abs(t.pitch) < 4 && Math.abs(t.vs) < 400, hold: 3 },
+        {
+          say: '<b>Roll.</b> Roll left (<kbd>←</kbd>) to about 20° of bank, then centre the yoke. Count how many clicks of the bank pointer you get on the attitude indicator.',
+          tip: 'The airplane stays banked after you centre the yoke. Ailerons set a roll RATE, not a bank angle: you roll in, neutralise, and roll out again later.',
+          targets: { bank: 20 },
+          done: (t) => t.bank < -15 && t.bank > -32,
+          hold: 3,
+        },
+        {
+          say: 'Keep that bank and watch the nose slide along the horizon: you are turning. You never touched anything that "steers" — the wing\'s lift is tilted, and its sideways part pulls you round the turn.',
+          enter: (c) => (c.h0 = c.t.hdg),
+          done: (t, c) => Math.abs(wrap180(t.hdg - c.h0)) > 20,
+        },
+        { say: 'Roll the wings level (<kbd>→</kbd>, then centre). The turn stops when the wings are level.', done: (t) => Math.abs(t.bank) < 5, hold: 2.5 },
+        {
+          say: 'Same to the right: roll to about 20° (<kbd>→</kbd>), hold it for a few seconds, then level the wings.',
+          done: (t, c) => {
+            if (t.bank > 15) c.wentRight = true;
+            return c.wentRight && Math.abs(t.bank) < 5;
+          },
+          enter: (c) => (c.wentRight = false),
+          hold: 2,
+        },
+        {
+          say: '<b>Yaw.</b> Press and hold right rudder (<kbd>D</kbd>) for two seconds, then release. The nose swings right — and watch the ball in the turn coordinator slide the other way.',
+          tip: 'The rudder does not turn the airplane. It only points the nose. Its job is to keep the tail following the nose so the airflow meets the airplane head-on: "ball in the middle".',
+          done: (t) => Math.abs(t.ball) > 3.5 || Math.abs(t.beta) > 5,
+        },
+        { say: 'Release the rudder. The fin weathervanes the nose straight again, just as a dart\'s feathers do.', done: (t) => Math.abs(t.beta) < 2.5, hold: 2 },
+        {
+          say: '<b>Power.</b> Go to full throttle (hold <kbd>W</kbd>) and keep your hands off the yoke. Watch what the nose does by itself.',
+          tip: 'More power than level flight needs is surplus energy. The trimmed airplane keeps its speed and spends the surplus on climbing.',
+          done: (t) => t.throttle > 0.95 && t.vs > 250,
+          hold: 3,
+        },
+        {
+          say: 'Now pull the throttle to idle (hold <kbd>S</kbd>), hands off again. The nose lowers and the airplane glides down at about the same speed. No engine does not mean falling: it means a long, shallow slide.',
+          tip: 'Power controls climb or descent. Pitch controls speed. That one sentence is most of flying.',
+          done: (t) => t.throttle < 0.05 && t.vs < -300,
+          hold: 3,
+        },
+        {
+          say: 'Bring the power back to about 2,300 RPM on the tachometer and let the airplane level off.',
+          targets: { rpm: 2300 },
+          done: (t) => t.rpm > 2150 && t.rpm < 2450 && Math.abs(t.vs) < 250,
+          hold: 4,
+        },
+        {
+          say: '<b>Trim.</b> If you find yourself holding the yoke back or forward to stay level, roll in trim until the pressure is gone: <kbd>E</kbd> for nose-up, <kbd>Q</kbd> for nose-down. Then let go and see whether it stays. Press <kbd>N</kbd> when it flies level hands-off.',
+          tip: 'Trim is a standing order: set it once and the airplane keeps coming back to that speed on its own.',
+          manual: true,
+        },
+        {
+          say: 'Last thing: press <kbd>C</kbd> for the outside view, move the controls and watch the surfaces. Stabilator for pitch, ailerons for roll, rudder for yaw. Press <kbd>N</kbd> to finish. Next up is <b>The Four Forces</b>.',
+          manual: true,
+        },
+      ],
+    },
+
+    {
       id: 'forces',
       group: 'Fundamentals',
       title: 'The Four Forces',

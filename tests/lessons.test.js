@@ -89,6 +89,30 @@ test('student completes Normal Takeoff & Climb with a satisfactory grade', () =>
   assert.equal(fails.length, 0, JSON.stringify(fails));
 });
 
+test('a first-timer can complete First Flight one control at a time', () => {
+  const l = FS.LESSONS.find((x) => x.id === 'first-flight');
+  assert.equal(FS.LESSONS[0], l, 'it is the first lesson');
+  const h = harness(l);
+  const ap = new Autopilot();
+  const d = h.run(600, (t, c, dt, r) => {
+    const i = r.i;
+    c.aileron = 0;
+    c.elevator = 0;
+    c.rudder = 0.03 * t.ball; // the auto-rudder assist
+    if (i === 1) ap.pitch(t, c, 10, dt);
+    else if (i === 2) ap.pitch(t, c, -5, dt);
+    else if (i === 4 || i === 5) ap.bank(t, c, -20);
+    else if (i === 7) ap.bank(t, c, r.ctx.wentRight ? 0 : 20);
+    else ap.bank(t, c, 0);
+    if (i === 8) c.rudder = 0.8;
+    if (i === 10) c.throttle = 1;
+    else if (i === 11) c.throttle = 0;
+    else if (i >= 12) c.throttle = M.clamp(c.throttle + (2300 - t.rpm) * 0.0004 * dt * 60 * 0.05, 0, 1);
+    if (r.step && r.step.manual && r.ctx.stepTime > 2) r.ack();
+  });
+  assert.ok(d && d.completed, `completed (stuck at step ${h.runner.i})`);
+});
+
 test('student completes Straight-and-Level (with speed changes)', () => {
   const l = FS.LESSONS.find((x) => x.id === 'straight-level');
   const h = harness(l);

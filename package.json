@@ -1,6 +1,6 @@
 {
   "name": "pattern-work-flight-sim",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "A physics-first private-pilot training simulator (PA-28-161) that runs in the browser.",
   "private": true,
   "scripts": {

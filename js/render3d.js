@@ -178,6 +178,11 @@
       cam.updateMatrixWorld(true);
     }
 
+    /** Height of the terrain (m above field elevation) under a north/east position. */
+    terrainHeight(n, e) {
+      return this.ok ? this.scenery.heightAt(n, e) : 0;
+    }
+
     /** World NED point -> overlay pixel, or null when behind the camera. */
     project(p) {
       const v = P(p).project(this.camera);
@@ -226,7 +231,8 @@
       if (this.scenery.setTime(hour, visM)) this.bakeEnvironment();
       this.scenery.setClouds(cfg.cloudCover === undefined ? 2 : cfg.cloudCover, cfg.cloudBaseFt === undefined ? 4500 : cfg.cloudBaseFt);
       const env = this.scenery.env;
-      this.gl.toneMappingExposure = 0.9 + 0.5 * env.dark;
+      // the eye adapts: open up the exposure as the sun gets low, and again after dark
+      this.gl.toneMappingExposure = 0.9 + 0.7 * (1 - M.smoothstep(4, 28, env.el)) + 0.2 * env.dark;
 
       this.setupCamera(ac, view, dt);
 

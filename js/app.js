@@ -126,6 +126,11 @@
         const pre = ac.telemetry();
         this.wx.update(sdt, pre.tas * U.KT, pre.agl / FT);
         ac.step(sdt, this.flightControls(pre, sdt));
+        // the flight model's ground is the flat valley floor; the mountains around it are checked here
+        if (!ac.crashed && Math.hypot(ac.s.pos[0], ac.s.pos[1]) > 15000) {
+          const h = this.renderer.terrainHeight(ac.s.pos[0], ac.s.pos[1]);
+          if (h > 2 && -ac.s.pos[2] < h + 1) ac.crash('Flew into rising terrain. In the mountains, turn away early: a loaded trainer cannot out-climb a ridge');
+        }
       }
       const t = ac.telemetry();
       const events = ac.events;
@@ -268,6 +273,10 @@
       this.view.lookPitch = 0;
       this.view.snap = true;
       if (lesson.aids) this.view.showAids = true;
+      if (lesson.autoRudder && !this.settings.assists.autoRudder) {
+        this.settings.assists.autoRudder = true;
+        this.toast('Auto-rudder is ON for this lesson (G toggles it).', 'good', 5000);
+      }
       this.renderer.chase.offset = null;
       this.map.options = S.map || {};
       this.map.clearTrail();
@@ -1327,7 +1336,7 @@
         <div class="group-title">Sim</div>
         <div class="keys">
           ${k(['Y'], 'Mouse yoke on/off (or click the view)')}
-          ${k(['C'], 'View: cockpit → chase → tower')}
+          ${k(['C'], 'View: cockpit → chase → tower → fly-by')}
           ${k(['1', '2', '3', '4', '5'], 'Look left · front-left · ahead · front-right · right')}
           ${k(['6', '7'], 'Look back-left / back-right')}
           ${k(['H'], 'Teaching aids (flight-path marker, digital HUD)')}
