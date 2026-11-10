@@ -31,7 +31,8 @@
 
   /**
    * Weather: one object holds everything about the air mass.
-   * cfg: { fieldElevFt, qnhInHg, tempC (at the field), windDir (deg, FROM), windKt, gustKt, turbulence (0..1), seed }
+   * cfg: { fieldElevFt, qnhInHg, tempC (at the field), windDir (deg, FROM), windKt, gustKt, turbulence (0..1), seed,
+   *        timeOfDay (local hour), cloudCover (0 clear .. 3 broken), cloudBaseFt (AGL), visSm } — the last four only change what you see
    */
   class Weather {
     constructor(cfg) {
@@ -61,7 +62,7 @@
     }
 
     static defaults() {
-      return { fieldElevFt: 500, qnhInHg: 29.92, tempC: 14, windDir: 360, windKt: 0, gustKt: 0, turbulence: 0, seed: 1234 };
+      return { fieldElevFt: 500, qnhInHg: 29.92, tempC: 14, windDir: 360, windKt: 0, gustKt: 0, turbulence: 0, seed: 1234, timeOfDay: 10, cloudCover: 2, cloudBaseFt: 4500, visSm: 30 };
     }
 
     /** Air properties at an altitude above mean sea level (m). */

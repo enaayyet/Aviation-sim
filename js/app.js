@@ -40,8 +40,11 @@
     'engine-failure': ['low-path', 'high-path', 'sink'],
     'weight-balance': ['trim'],
   };
-  const VIEWS = ['cockpit', 'chase', 'tower'];
-  const VIEW_NAMES = { cockpit: 'Cockpit', chase: 'Chase', tower: 'Tower' };
+  const VIEWS = ['cockpit', 'chase', 'tower', 'flyby'];
+  const VIEW_NAMES = { cockpit: 'Cockpit', chase: 'Chase', tower: 'Tower', flyby: 'Fly-by' };
+  const SKY_KEYS = ['timeOfDay', 'cloudCover', 'cloudBaseFt', 'visSm'];
+  const TIMES = [['Dawn', 6.3], ['Morning', 9], ['Late morning', 10], ['Midday', 12.5], ['Afternoon', 15.5], ['Golden hour', 17.2], ['Dusk', 18.1], ['Night', 21.5]];
+  const CLOUDS = [['Clear', 0], ['Few', 1], ['Scattered', 2], ['Broken', 3]];
   const LOOK = { Digit1: [-90, -8], Digit2: [-45, -4], Digit3: [0, 0], Digit4: [45, -4], Digit5: [90, -8], Digit6: [-130, -15], Digit7: [130, -15] };
 
   class App {
@@ -59,6 +62,7 @@
         },
         stored.settings || {}
       );
+      { const d = FS.Weather.defaults(); for (const k of SKY_KEYS) if (this.settings.weather[k] === undefined) this.settings.weather[k] = d[k]; }
       this.settings.assists = Object.assign({ coach: true, voice: false, autoRudder: false }, this.settings.assists);
       this.progress = stored.progress || {};
       this.logbook = stored.logbook || [];
@@ -135,6 +139,8 @@
       if (!this.paused) this.record(t, sdt);
 
       this.view.tele = t;
+      this.view.paused = this.paused;
+      this.view.timeScale = this.timeScale;
       this.renderer.render(ac, this.view, dt);
       const targets = this.runner && !this.runner.done ? this.runner.targets() : null;
       this.panel.draw(t, targets);
@@ -240,7 +246,10 @@
     startLesson(lesson, silent) {
       this.lesson = lesson;
       const S = lesson.setup;
-      const wxCfg = S.useSettings ? this.settings.weather : Object.assign(FS.Weather.defaults(), S.weather || {});
+      // the sky (time of day, clouds, visibility) is your choice in every lesson; winds and pressure belong to the lesson
+      const sky = {};
+      for (const k of SKY_KEYS) if (this.settings.weather[k] !== undefined) sky[k] = this.settings.weather[k];
+      const wxCfg = S.useSettings ? this.settings.weather : Object.assign(FS.Weather.defaults(), sky, S.weather || {});
       this.wx.turb = [0, 0, 0];
       this.wx.turbP = 0;
       this.wx.gustFactor = 0;
@@ -730,6 +739,7 @@
         cockpit: 'Look: <kbd>1</kbd>–<kbd>5</kbd> (3 = ahead)',
         chase: 'Drag to orbit · wheel to zoom · force vectors shown',
         tower: 'Tower camera tracks you',
+        flyby: 'Fly-by camera: you fly past it',
       };
       $('viewhint').innerHTML = (this.input.mouseYoke ? '<b style="color:#ffb547">MOUSE YOKE</b> · ' : '') + hints[this.view.mode];
     }
@@ -1117,6 +1127,13 @@
           ${this.slider('wx-qnh', 'Altimeter setting (QNH)', 28.5, 31, 0.01, w.qnhInHg, ' inHg')}
           ${this.slider('wx-elev', 'Field elevation', 0, 8000, 100, w.fieldElevFt, ' ft')}
         </div>
+        <div class="group-title" style="margin-top:16px">The sky <span class="muted">— applies to every lesson, takes effect immediately</span></div>
+        <div class="form">
+          <div class="field"><label>Time of day</label><select id="wx-time">${TIMES.map(([n, v]) => `<option value="${v}" ${Math.abs(w.timeOfDay - v) < 0.01 ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+          <div class="field"><label>Clouds</label><select id="wx-cloud">${CLOUDS.map(([n, v]) => `<option value="${v}" ${w.cloudCover === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+          ${this.slider('wx-base', 'Cloud base (above the field)', 1500, 9000, 500, w.cloudBaseFt, ' ft')}
+          ${this.slider('wx-vis', 'Visibility', 3, 60, 1, w.visSm, ' sm')}
+        </div>
         <div class="conditions" id="wx-readout" style="margin-top:14px"></div>
         <p class="note">Density altitude is computed from the pressure and temperature you set — the airplane, engine and propeller all respond to the actual air density, so hot & high really does hurt.</p>
         <div class="row"><button class="primary" id="wx-fly">Fly free flight in these conditions</button></div>`;
@@ -1128,6 +1145,11 @@
         w.tempC = +$('wx-temp').value;
         w.qnhInHg = +$('wx-qnh').value;
         w.fieldElevFt = +$('wx-elev').value;
+        w.timeOfDay = +$('wx-time').value;
+        w.cloudCover = +$('wx-cloud').value;
+        w.cloudBaseFt = +$('wx-base').value;
+        w.visSm = +$('wx-vis').value;
+        for (const k of SKY_KEYS) this.wx.cfg[k] = w[k]; // the sky changes live, behind the menu
         this.syncSliderLabels(el);
         this.updateWxReadout();
         this.persist();
